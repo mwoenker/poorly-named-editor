@@ -5,8 +5,6 @@ import {
     IconButton,
     Button,
     Grid,
-//    List,
-//    ListItem
     Select,
     MenuItem,
 } from '@material-ui/core';
@@ -14,6 +12,9 @@ import ZoomInIcon from '@material-ui/icons/ZoomIn';
 import ZoomOutIcon from '@material-ui/icons/ZoomOut';
 
 import {readMapSummaries, readMapFromSummary} from './wad.js'
+import colors from './colors.js';
+import {polygonsAt, closestPoint, isConvex} from './geometry.js'
+import v2 from './vector2.js'
 
 function MapSummary({map}) {
     return (
@@ -57,36 +58,32 @@ const MapGeometry = React.memo((allProps) => {
     const endpoints = map && map.endpoints ? map.endpoints : [];
     const lines = map && map.lines ? map.lines : [];
     const dimMin = -0x8000;
-    const dimMax = 0xffff;
-    const viewBox = `${dimMin} ${dimMin} ${dimMax} ${dimMax}`;
+    const dimMax = 0x7fff;
+    const dimWidth = 0xffff
+    const viewBox = `${dimMin} ${dimMin} ${dimWidth} ${dimWidth}`;
     const pointWidth = 3 * pixelSize;
     const selectedPointWidth = 6 * pixelSize;
 
     //console.log('geom');
 
-    function isConvex(points) {
-        let polyWinding = 0;
-        for (let i = 0; i < points.length; ++i) {
-            const p1 = points[i];
-            const p2 = points[(i + 1) % points.length];
-            const p3 = points[(i + 2) % points.length];
-            const seg1 = [p2[0] - p1[0], p2[1] - p1[1]];
-            const seg2 = [p3[0] - p2[0], p3[1] - p2[1]];
-            const winding = Math.sign(seg1[0] * seg2[1] - seg1[1] * seg2[0]);
-            if (winding !== 0) {
-                if (polyWinding !== 0 && polyWinding !== winding) {
-                    return false;
-                } else {
-                    polyWinding = winding;
-                }
-            }
+    // coordinates of grid lines
+    let ruleSize = 512;
+    const rules = [];
+    for (let i = dimMin; i <= dimMax; i += ruleSize) {
+        rules.push(i);
+    }
+
+    // locations of dots that mark even world units
+    const wuMarkers = [];
+    for (let y = dimMin; y <= dimMax; y += 1024) {
+        for (let x = dimMin; x <= dimMax; x += 1024) {
+            wuMarkers.push([x, y]);
         }
-        return true;
     }
 
     return (
         <svg viewBox={viewBox}
-             style={{width: dimMax / pixelSize, height: dimMax / pixelSize}}
+             style={{width: dimWidth / pixelSize, height: dimWidth / pixelSize}}
              preserveAspectRatio="xMidYMid"
              xmlns="http://www.w3.org/2000/svg"
              {...props}>
@@ -99,16 +96,51 @@ const MapGeometry = React.memo((allProps) => {
                          patternUnits="userSpaceOnUse"
                          patternTransform={`scale(${pixelSize})`}>
                     <polygon points="0,8 8,0 10,0 10,2 2,10 0,10"
-                             fill="#ff0000" />
-                    <polygon points="0,0 0,2 2,0" fill="#ff0000" />
-                    <polygon points="10,10 8,10 10,8" fill="#ff0000" />
+                             fill={colors.nonconvexWarning} />
+                    <polygon points="0,0 0,2 2,0"
+                             fill={colors.nonconvexWarning} />
+                    <polygon points="10,10 8,10 10,8"
+                             fill={colors.nonconvexWarning} />
                 </pattern>
             </defs>
+
             <rect x={dimMin}
                   y={dimMin} 
-                  width={dimMax}
-                  height={dimMax}
-                  fill="#aaa" />
+                  width={dimWidth}
+                  height={dimWidth}
+                  fill={colors.background} />
+
+            { rules.map(r => <line key={`horiz-${r}`}
+                                   x1={dimMin}
+                                   x2={dimMax}
+                                   y1={r}
+                                   y2={r}
+                                   stroke={colors.ruleLine}
+                                   strokeWidth="1px"
+                                   vectorEffect="non-scaling-stroke"
+                             shapeRendering="crispEdges" />) }
+            
+            { rules.map(r => <line key={`vert-${r}`}
+                                   x1={r}
+                                   x2={r}
+                                   y1={dimMin}
+                                   y2={dimMax}
+                                   stroke={colors.ruleLine}
+                                   strokeWidth="1px"
+                                   vectorEffect="non-scaling-stroke"
+                                   shapeRendering="crispEdges" />) }
+
+            { wuMarkers.map(([x, y]) =>
+                <rect x={x - pixelSize}
+                      y={y - pixelSize}
+                      key={`rule-point-${x},${y}`}
+                      width={pixelSize*3}
+                      height={pixelSize*3}
+                      vectorEffect="non-scaling-stroke"
+                      shapeRendering="crispEdges"
+                      fill={colors.wuMarker} />
+            )}
+
             {polygons.map((poly, i) => {
                 const nPoints = poly.vertexCount;
                 const points = poly.endpoints.slice(0, nPoints).map(
@@ -119,38 +151,36 @@ const MapGeometry = React.memo((allProps) => {
                       && i === selection.index;
                 const convex = isConvex(points);
                 //const color = selected ? '#ee9933' : '#fff';
-                const color = selected ? '#000' : '#fff';
+                const color = selected
+                      ? colors.selectedPolygon
+                      : colors.polygon;
 
                 let nonConvexWarning = null;
                 if (! convex) {
                     nonConvexWarning = (
-                        <polygon key={`poly-${i}`}
+                        <polygon key={`poly-nonconvex-${i}`}
                                  points={svgPoints}
                                  fill="url(#nonconvex)" />
                     );
                 }
 
-                'url(#nonconvex)';
-                
-                return (
-                    <>
-                        <polygon key={`poly-${i}`}
-                                 points={svgPoints}
-                                 fill={color} />
-                        {nonConvexWarning}
-                    </>
-                );
+                return [
+                    <polygon key={`poly-${i}`}
+                             points={svgPoints}
+                             fill={color} />,
+                    nonConvexWarning
+                ];
             })}
             {lines.map((line, i) => {
                 const inSelectedPoly =  'polygon' === selection.objType &&
                       [line.frontPoly, line.backPoly].includes(selection.index);
                 const isPortal = line.frontPoly != 0xffff &&
                       line.backPoly != 0xffff;
-                let color = '#000';
+                let color = colors.line;
                 if (isPortal) {
-                    color = 'cyan';
+                    color = colors.portalLine;
                 } else if (inSelectedPoly) {
-                    color = '#fff';
+                    color = colors.lineInSelectedPoly;
                 }
                 return <line x1={endpoints[line.begin].position[0]}
                              y1={endpoints[line.begin].position[1]}
@@ -158,14 +188,14 @@ const MapGeometry = React.memo((allProps) => {
                              y2={endpoints[line.end].position[1]}
                              key={`line-${i}`}
                              stroke={color}
-                             strokeWidth="1.5px"
+                             strokeWidth="1px"
                              vectorEffect="non-scaling-stroke"/>
             })}
             {endpoints.map((point, i) => {
                 const selected =
                       'point' === selection.objType && i === selection.index;
                 const width = selected ? selectedPointWidth : pointWidth;
-                const color = selected ? 'black' : 'red';
+                const color = selected ? colors.selectedPoint : colors.point;
                 return (
                     <rect x={point.position[0] - width/2}
                           y={point.position[1] - width/2}
@@ -252,72 +282,30 @@ function MapView({pixelSize, map, setMap, ...props}) {
 
     function mouseDown(e) {
         const [x, y] = toWorld([e.nativeEvent.offsetX, e.nativeEvent.offsetY]);
-        
-        function distSq(endpoint) {
-            const dx = endpoint.position[0] - x;
-            const dy = endpoint.position[1] - y;
-            return (dx * dx) + (dy * dy);
-        }
 
         // Did we click on a point?
-        let closest = -1;
-        for (let i = 0; i < map.endpoints.length; ++i) {
-            if (-1 === closest ||
-                distSq(map.endpoints[i]) < distSq(map.endpoints[closest]))
-            {
-                closest = i;
-            }
-        }
-
-        if (Math.sqrt(distSq(map.endpoints[closest])) <= pixelSize * 8) {
+        const pointIndex = closestPoint([x, y], map);
+        const position = map.endpoints[pointIndex].position
+        if (v2.dist(position, [x, y]) < pixelSize * 8) {
             return updateSelection({
                 type: 'down',
                 objType: 'point',
-                index: closest,
+                index: pointIndex,
                 coords: [x, y],
             });
         }
 
         // Did we click on a polygon?
-        let intersectedPoly = null;
-        for (let i = 0; i < map.polygons.length; ++i) {
-            const polygon = map.polygons[i];
-            let nLeftIntersections = 0;
-            for (let j = 0; j < polygon.vertexCount; ++j) {
-                const line = map.lines[polygon.lines[j]];
-                const begin = map.endpoints[line.begin].position;
-                const end = map.endpoints[line.end].position;
-                if ((begin[1] <= y && y < end[1]) ||
-                    (begin[1] > y && y >= end[1]))
-                {
-                    const t = (y - begin[1]) / (end[1] - begin[1]);
-                    const intersectX = begin[0] + t * (end[0] - begin[0]);
-                    if (intersectX <= x) {
-                        ++nLeftIntersections;
-                    }
-                }
-            }
-            if (1 == (nLeftIntersections % 2)) {
-                intersectedPoly = i;
-            }
-        }
-        if (null !== intersectedPoly) {
+        const polygons = polygonsAt([x, y], map);
+        if (polygons) {
             return updateSelection({
                 type: 'down',
                 objType: 'polygon',
-                index: intersectedPoly,
+                index: polygons[polygons.length - 1],
                 coords: [x, y],
             });
         }
-
-
-        // return updateSelection({
-        //             type: 'down',
-        //             objType: 'polygon',
-        //             index: 1,
-        //             coords: [x, y],
-        //         });
-
+        
         updateSelection({type: 'cancel'});
     }
 
