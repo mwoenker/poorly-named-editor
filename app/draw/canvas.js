@@ -49,9 +49,11 @@ function draw(map, canvas, pixelSize, viewCenter, selection) {
 
     const nonConvexWarningPattern = getNonConvexPattern();
     
-    // top & left of viewport in world coords
+    // edges of viewport in world coords
     const left = viewCenter[0] - (width / 2 * pixelSize);
     const top = viewCenter[1] - (height / 2 * pixelSize);
+    const right = viewCenter[0] + (width / 2 * pixelSize);
+    const bottom = viewCenter[1] + (height / 2 * pixelSize);
 
     function toPixel(p) {
         return [
@@ -67,6 +69,40 @@ function draw(map, canvas, pixelSize, viewCenter, selection) {
     context.rect(0, 0, width, height);
     context.fillStyle = colors.background;
     context.fill();
+
+    // Draw ruler lines
+    const ruleSize = 256;
+    context.strokeStyle = colors.ruleLine;
+    for (let y = top - (top % ruleSize); y <= bottom; y += ruleSize) {
+        context.beginPath();
+        context.moveTo(...toPixel([left, y]));
+        context.lineTo(...toPixel([right, y]));
+        context.stroke();
+    }
+
+    for (let x = left - (left % ruleSize); x <= right; x += ruleSize) {
+        context.beginPath();
+        context.moveTo(...toPixel([x, top]));
+        context.lineTo(...toPixel([x, bottom]));
+        context.stroke();
+    }
+
+    // Draw world unit markers
+    const wuSize = 1024
+    const markerRadius = 1.5;
+    context.fillStyle = colors.wuMarker;
+    for (let y = top - (top % wuSize); y <= bottom; y += wuSize) {
+        for (let x = left - (left % wuSize); x <= right; x += wuSize) {
+            context.beginPath();
+            const [sx, sy] = toPixel([x, y]);
+            context.moveTo(sx - markerRadius, sy - markerRadius);
+            context.lineTo(sx + markerRadius, sy - markerRadius);
+            context.lineTo(sx + markerRadius, sy + markerRadius);
+            context.lineTo(sx - markerRadius, sy + markerRadius);
+            context.fill();
+        }
+    }
+
 
     if (! map) {
         return;
