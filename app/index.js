@@ -13,10 +13,19 @@ import ZoomOutIcon from '@material-ui/icons/ZoomOut';
 
 import {readMapSummaries, readMapFromSummary} from './wad.js'
 import colors from './colors.js';
+import {SvgMap} from './draw/svg.js';
+import {CanvasMap} from './draw/canvas.js';
 import {polygonsAt, closestPoint, isConvex} from './geometry.js'
 import v2 from './vector2.js'
 
 function MapSummary({map}) {
+    if (map && map.polygons && map.lines && map.endpoints) {
+        return `${map.polygons.length} polygons, ` +
+            `${map.lines.length} lines, ` +
+            `${map.endpoints.length} points`;
+    } else {
+        return '';
+    }
     return (
         <table>
             <tbody>
@@ -51,164 +60,6 @@ function MapList({maps, selectedMap, setSelectedMap}) {
         </Select>
     );
 }
-
-const MapGeometry = React.memo((allProps) => {
-    const {map, pixelSize, addPoint, selection, ...props} = allProps;
-    const polygons = map && map.polygons ? map.polygons : [];
-    const endpoints = map && map.endpoints ? map.endpoints : [];
-    const lines = map && map.lines ? map.lines : [];
-    const dimMin = -0x8000;
-    const dimMax = 0x7fff;
-    const dimWidth = 0xffff
-    const viewBox = `${dimMin} ${dimMin} ${dimWidth} ${dimWidth}`;
-    const pointWidth = 3 * pixelSize;
-    const selectedPointWidth = 6 * pixelSize;
-
-    //console.log('geom');
-
-    // coordinates of grid lines
-    let ruleSize = 512;
-    const rules = [];
-    for (let i = dimMin; i <= dimMax; i += ruleSize) {
-        rules.push(i);
-    }
-
-    // locations of dots that mark even world units
-    const wuMarkers = [];
-    for (let y = dimMin; y <= dimMax; y += 1024) {
-        for (let x = dimMin; x <= dimMax; x += 1024) {
-            wuMarkers.push([x, y]);
-        }
-    }
-
-    return (
-        <svg viewBox={viewBox}
-             style={{width: dimWidth / pixelSize, height: dimWidth / pixelSize}}
-             preserveAspectRatio="xMidYMid"
-             xmlns="http://www.w3.org/2000/svg"
-             {...props}>
-            <defs>
-                <pattern id="nonconvex"
-                         x="0"
-                         y="0"
-                         width="10"
-                         height="10"
-                         patternUnits="userSpaceOnUse"
-                         patternTransform={`scale(${pixelSize})`}>
-                    <polygon points="0,8 8,0 10,0 10,2 2,10 0,10"
-                             fill={colors.nonconvexWarning} />
-                    <polygon points="0,0 0,2 2,0"
-                             fill={colors.nonconvexWarning} />
-                    <polygon points="10,10 8,10 10,8"
-                             fill={colors.nonconvexWarning} />
-                </pattern>
-            </defs>
-
-            <rect x={dimMin}
-                  y={dimMin} 
-                  width={dimWidth}
-                  height={dimWidth}
-                  fill={colors.background} />
-
-            { rules.map(r => <line key={`horiz-${r}`}
-                                   x1={dimMin}
-                                   x2={dimMax}
-                                   y1={r}
-                                   y2={r}
-                                   stroke={colors.ruleLine}
-                                   strokeWidth="1px"
-                                   vectorEffect="non-scaling-stroke"
-                             shapeRendering="crispEdges" />) }
-            
-            { rules.map(r => <line key={`vert-${r}`}
-                                   x1={r}
-                                   x2={r}
-                                   y1={dimMin}
-                                   y2={dimMax}
-                                   stroke={colors.ruleLine}
-                                   strokeWidth="1px"
-                                   vectorEffect="non-scaling-stroke"
-                                   shapeRendering="crispEdges" />) }
-
-            { wuMarkers.map(([x, y]) =>
-                <rect x={x - pixelSize}
-                      y={y - pixelSize}
-                      key={`rule-point-${x},${y}`}
-                      width={pixelSize*3}
-                      height={pixelSize*3}
-                      vectorEffect="non-scaling-stroke"
-                      shapeRendering="crispEdges"
-                      fill={colors.wuMarker} />
-            )}
-
-            {polygons.map((poly, i) => {
-                const nPoints = poly.vertexCount;
-                const points = poly.endpoints.slice(0, nPoints).map(
-                    idx => endpoints[idx].position);
-                const svgPoints = points.map(pt => `${pt[0]},${pt[1]}`)
-                      .join(' ');
-                const selected = 'polygon' === selection.objType 
-                      && i === selection.index;
-                const convex = isConvex(points);
-                //const color = selected ? '#ee9933' : '#fff';
-                const color = selected
-                      ? colors.selectedPolygon
-                      : colors.polygon;
-
-                let nonConvexWarning = null;
-                if (! convex) {
-                    nonConvexWarning = (
-                        <polygon key={`poly-nonconvex-${i}`}
-                                 points={svgPoints}
-                                 fill="url(#nonconvex)" />
-                    );
-                }
-
-                return [
-                    <polygon key={`poly-${i}`}
-                             points={svgPoints}
-                             fill={color} />,
-                    nonConvexWarning
-                ];
-            })}
-            {lines.map((line, i) => {
-                const inSelectedPoly =  'polygon' === selection.objType &&
-                      [line.frontPoly, line.backPoly].includes(selection.index);
-                const isPortal = line.frontPoly != 0xffff &&
-                      line.backPoly != 0xffff;
-                let color = colors.line;
-                if (isPortal) {
-                    color = colors.portalLine;
-                } else if (inSelectedPoly) {
-                    color = colors.lineInSelectedPoly;
-                }
-                return <line x1={endpoints[line.begin].position[0]}
-                             y1={endpoints[line.begin].position[1]}
-                             x2={endpoints[line.end].position[0]}
-                             y2={endpoints[line.end].position[1]}
-                             key={`line-${i}`}
-                             stroke={color}
-                             strokeWidth="1px"
-                             vectorEffect="non-scaling-stroke"/>
-            })}
-            {endpoints.map((point, i) => {
-                const selected =
-                      'point' === selection.objType && i === selection.index;
-                const width = selected ? selectedPointWidth : pointWidth;
-                const color = selected ? colors.selectedPoint : colors.point;
-                return (
-                    <rect x={point.position[0] - width/2}
-                          y={point.position[1] - width/2}
-                          key={`point-${i}`}
-                          width={width}
-                          height={width}
-                          vectorEffect="non-scaling-stroke"
-                          fill={color} />
-                );
-            })}
-        </svg>
-    );
-});
 
 const blankSelection = {
     objType: null,
@@ -264,8 +115,8 @@ function reduceSelection(state, action) {
     }
 }
 
-function MapView({pixelSize, map, setMap, ...props}) {
-    //const [viewport, setViewport] = useState(null);
+function MapView({pixelSize, map, setMap, drawType, ...props}) {
+    const [viewportSize, setViewportSize] = useState([0, 0]);
     const [viewCenter, setViewCenter] = useState([0, 0]);
     //const [selection, setSelection] = useState({type: null, index: null});
     const [selection, updateSelection] = useReducer(
@@ -281,8 +132,16 @@ function MapView({pixelSize, map, setMap, ...props}) {
     }
 
     function mouseDown(e) {
-        const [x, y] = toWorld([e.nativeEvent.offsetX, e.nativeEvent.offsetY]);
+        let viewX = e.nativeEvent.offsetX;
+        let viewY = e.nativeEvent.offsetY;
 
+        if ('canvas' === drawType) {
+            viewX += parseFloat(e.target.dataset.left);
+            viewY += parseFloat(e.target.dataset.top);
+        }
+        
+        const [x, y] = toWorld([viewX, viewY]);
+        
         // Did we click on a point?
         const pointIndex = closestPoint([x, y], map);
         const position = map.endpoints[pointIndex].position
@@ -310,9 +169,17 @@ function MapView({pixelSize, map, setMap, ...props}) {
     }
 
     function mouseMove(e) {
+        let viewX = e.nativeEvent.offsetX;
+        let viewY = e.nativeEvent.offsetY;
+
+        if ('canvas' === drawType) {
+            viewX += parseFloat(e.target.dataset.left);
+            viewY += parseFloat(e.target.dataset.top);
+        }
+        
         updateSelection({
             type: 'move',
-            coords: toWorld([e.nativeEvent.offsetX, e.nativeEvent.offsetY]),
+            coords: toWorld([viewX, viewY]),
             pixelSize: pixelSize,
         });
     }
@@ -340,6 +207,12 @@ function MapView({pixelSize, map, setMap, ...props}) {
                 pixelCenter[1] - (ref.current.clientHeight / 2)
             ];
             ref.current.scrollTo(...pixelCorner);
+            if (viewportSize[0] != ref.current.clientWidth ||
+                viewportSize[1] != ref.current.clientHeight)
+            {
+                setViewportSize(
+                    [ref.current.clientWidth, ref.current.clientHeight]);
+            }
         }
     }
     
@@ -369,8 +242,33 @@ function MapView({pixelSize, map, setMap, ...props}) {
         [selection.isDragging, selection.currentCoords]
     );
 
+    let mapView;
+
+    if ('svg' === drawType) {
+        mapView = (
+            <SvgMap
+                map={map}
+                pixelSize={pixelSize}
+                selection={selection}
+            />
+        );
+    } else if ('canvas' === drawType) {
+        mapView = (
+            <CanvasMap
+                map={map}
+                pixelSize={pixelSize}
+                selection={selection}
+                viewCenter={viewCenter || [0, 0]}
+                viewportSize={viewportSize}
+            />
+        );
+    }
+
     return (
-        <div style={{flex: '1 1 auto', overflow: 'scroll'}}
+        <div style={{
+                 flex: '1 1 auto',
+                 overflow: 'scroll',
+             }}
              onScroll={updateScroll}
              onMouseDown={mouseDown}
              onMouseMove={mouseMove}
@@ -378,11 +276,7 @@ function MapView({pixelSize, map, setMap, ...props}) {
              onMouseLeave={mouseLeave}
              ref={ref}
         >
-            <MapGeometry {...props}
-                         map={map}
-                         pixelSize={pixelSize}
-                         selection={selection}
-            />
+            {mapView}
         </div>
     );
 }
@@ -390,6 +284,7 @@ function MapView({pixelSize, map, setMap, ...props}) {
 function Editor(props) {
     const [file, setFile] = useState({file: null, summaries: []});
     const [map, setMap] = useState(null);
+    const [drawType, setDrawType] = useState('canvas');
     // size of screen pixel in map units
     const [pixelSize, setPixelSize] = useState(64);
 
@@ -409,19 +304,6 @@ function Editor(props) {
     function zoomOut() {
         setPixelSize(pixelSize * 2);
     }
-    
-    function fuckUpMap() {
-        if (map && map.endpoints) {
-            const {endpoints, ...rest} = map;
-            const modified = [...endpoints];
-            for (let i = 0; i < modified.length; i += 200) {
-                let {position, ...epnt_rest} = {...modified[i]}
-                const newPos = [-position[0], -position[1]];
-                modified[i] = {position: newPos, ...epnt_rest};
-            }
-            setMap({endpoints: modified, ...rest});
-        }
-    }
 
     return (
         <Grid container spacing={3} style={{width: '100%', height: '100%', overflow: 'hidden'}}>
@@ -440,16 +322,34 @@ function Editor(props) {
                       flexDirection: 'column',
                       padding: 0,
                   }} >
-                <div style={{flex: '0 0 auto'}}>
-                    <IconButton onClick={zoomOut}>
-                        <ZoomOutIcon />
-                    </IconButton>
-                    <IconButton onClick={zoomIn}>
-                        <ZoomInIcon />
-                    </IconButton>
+                <div style={{display: 'flex'}}>
+                    <div style={{flex: '0 0 auto'}}>
+                        <IconButton onClick={zoomOut}>
+                            <ZoomOutIcon />
+                        </IconButton>
+                        <IconButton onClick={zoomIn}>
+                            <ZoomInIcon />
+                        </IconButton>
+                        <Select
+                            value={drawType}
+                            onChange={(e) => setDrawType(e.target.value)}
+                        >
+                            <MenuItem value='svg'>SVG</MenuItem>
+                            <MenuItem value='canvas'>Canvas</MenuItem>
+                        </Select>
+                    </div>
+                    <div style={{
+                             flex: '1 auto',
+                             textAlign: 'right',
+                             padding: '12px',
+                         }}>
+                        <MapSummary map={map} />
+                    </div>
                 </div>
-                <MapView map={map} setMap={setMap}
+                <MapView map={map}
+                         setMap={setMap}
                          pixelSize={pixelSize}
+                         drawType={drawType}
                          addPoint={(x, y) => {
                              map.endpoints.push({position: [x, y]});
                              setMap({...map});
