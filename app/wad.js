@@ -330,7 +330,7 @@ async function readMap(file, wadHeader, index) {
     return {
         index: index,
         header: wadHeader,
-        info: chunks.get('summaMinf'),
+        info: chunks.get('Minf'),
         lines: chunks.get('LINS'),
         endpoints: chunks.get('EPNT'),
         polygons: chunks.get('POLY'),

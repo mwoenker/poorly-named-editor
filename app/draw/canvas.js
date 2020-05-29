@@ -1,17 +1,6 @@
-import React, {useRef, useEffect} from 'react';
+import React, {useRef, useEffect, useLayoutEffect} from 'react';
 import colors from '../colors';
 import {isConvex} from '../geometry.js'
-
-const pattern = [
-    [1, 1, 0, 0, 0, 0, 1, 1],
-    [1, 1, 1, 0, 0, 0, 0, 1],
-    [0, 1, 1, 1, 0, 0, 0, 0],
-    [0, 0, 1, 1, 1, 0, 0, 0],
-    [0, 0, 0, 1, 1, 1, 0, 0],
-    [0, 0, 0, 0, 1, 1, 1, 0],
-    [1, 0, 0, 0, 0, 1, 1, 1],
-    [1, 1, 0, 0, 0, 0, 1, 1],
-];
 
 // Striped red line pattern that polygon is drawn w/ if non convex
 let nonConvexPattern;
@@ -55,13 +44,16 @@ function draw(map, canvas, pixelSize, viewCenter, selection) {
     const right = viewCenter[0] + (width / 2 * pixelSize);
     const bottom = viewCenter[1] + (height / 2 * pixelSize);
 
+    const dimMin = -0x8000;
+    const dimMax = 0x7fff;
+
     function toPixel(p) {
         return [
             (p[0] - left) / pixelSize,
             (p[1] - top) / pixelSize,
         ];
     }
-    
+
     const context = canvas.getContext('2d');
 
     // Draw background
@@ -70,20 +62,31 @@ function draw(map, canvas, pixelSize, viewCenter, selection) {
     context.fillStyle = colors.background;
     context.fill();
 
+    const gridLeft = Math.max(dimMin, left);
+    const gridRight = Math.min(dimMax, right);
+    const gridTop = Math.max(dimMin, top);
+    const gridBottom = Math.min(dimMax, bottom);
+    
     // Draw ruler lines
     const ruleSize = 256;
     context.strokeStyle = colors.ruleLine;
-    for (let y = top - (top % ruleSize); y <= bottom; y += ruleSize) {
+    for (let y = gridTop - (gridTop % ruleSize);
+         y <= gridBottom;
+         y += ruleSize)
+    {
         context.beginPath();
-        context.moveTo(...toPixel([left, y]));
-        context.lineTo(...toPixel([right, y]));
+        context.moveTo(...toPixel([gridLeft, y]));
+        context.lineTo(...toPixel([gridRight, y]));
         context.stroke();
     }
 
-    for (let x = left - (left % ruleSize); x <= right; x += ruleSize) {
+    for (let x = gridLeft - (gridLeft % ruleSize);
+         x <= gridRight;
+         x += ruleSize)
+    {
         context.beginPath();
-        context.moveTo(...toPixel([x, top]));
-        context.lineTo(...toPixel([x, bottom]));
+        context.moveTo(...toPixel([x, gridTop]));
+        context.lineTo(...toPixel([x, gridBottom]));
         context.stroke();
     }
 
@@ -91,8 +94,11 @@ function draw(map, canvas, pixelSize, viewCenter, selection) {
     const wuSize = 1024
     const markerRadius = 1.5;
     context.fillStyle = colors.wuMarker;
-    for (let y = top - (top % wuSize); y <= bottom; y += wuSize) {
-        for (let x = left - (left % wuSize); x <= right; x += wuSize) {
+    for (let y = gridTop - (gridTop % wuSize); y <= gridBottom; y += wuSize) {
+        for (let x = gridLeft - (gridLeft % wuSize);
+             x <= gridRight;
+             x += wuSize)
+        {
             context.beginPath();
             const [sx, sy] = toPixel([x, y]);
             context.moveTo(sx - markerRadius, sy - markerRadius);
@@ -187,7 +193,7 @@ export function CanvasMap(allProps) {
     } = allProps;
     const ref = useRef();
 
-    useEffect(
+    useLayoutEffect(
         () => {
             if (ref.current) {
                 draw(map, ref.current, pixelSize, viewCenter, selection);
@@ -201,12 +207,12 @@ export function CanvasMap(allProps) {
         (viewCenter[1] + 0x8000) / pixelSize,
     ];
     
-    const left = containerCenter[0] - (viewportSize[0] / 2);
-    const top = containerCenter[1] - (viewportSize[1] / 2);
+    const left = Math.max(0, containerCenter[0] - (viewportSize[0] / 2));
+    const top = Math.max(0, containerCenter[1] - (viewportSize[1] / 2));
     
     return (
         <div style={{
-                 position: 'relative',
+                 //position: 'relative',
                  width: 0xffff / pixelSize,
                  height: 0xffff / pixelSize,
              }}
@@ -214,7 +220,10 @@ export function CanvasMap(allProps) {
             <canvas width={viewportSize[0]}
                     height={viewportSize[1]}
                     style={{
-                        transform: `translate(${left}px, ${top}px)`,
+                        //transform: `translate(${left}px, ${top}px)`,
+                        position: 'sticky',
+                        top: 0,
+                        left: 0,
                     }}
                     data-left={left}
                     data-top={top}

@@ -18,32 +18,15 @@ import {CanvasMap} from './draw/canvas.js';
 import {polygonsAt, closestPoint, isConvex} from './geometry.js'
 import v2 from './vector2.js'
 
-function MapSummary({map}) {
+function MapSummary({directoryEntry, map}) {
     if (map && map.polygons && map.lines && map.endpoints) {
-        return `${map.polygons.length} polygons, ` +
+        return `Level: ${map.info.name} - ` +
+            `${map.polygons.length} polygons, ` +
             `${map.lines.length} lines, ` +
             `${map.endpoints.length} points`;
     } else {
         return '';
     }
-    return (
-        <table>
-            <tbody>
-                <tr>
-                    <th>Polygons</th>
-                    <td>{map && map.polygons && map.polygons.length}</td>
-                </tr>
-                <tr>
-                    <th>Lines</th>
-                    <td>{map && map.lines && map.lines.length}</td>
-                </tr>
-                <tr>
-                    <th>Endpoints</th>
-                    <td>{map && map.endpoints && map.endpoints.length}</td>
-                </tr>
-            </tbody>
-        </table>
-    );
 }
 
 function MapList({maps, selectedMap, setSelectedMap}) {
