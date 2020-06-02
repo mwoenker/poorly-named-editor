@@ -11,7 +11,7 @@ import {
 import ZoomInIcon from '@material-ui/icons/ZoomIn';
 import ZoomOutIcon from '@material-ui/icons/ZoomOut';
 
-import {readMapSummaries, readMapFromSummary} from './wad.js'
+import {readMapSummaries, readMapFromSummary} from './files/wad'
 import colors from './colors.js';
 import {SvgMap} from './draw/svg.js';
 import {CanvasMap} from './draw/canvas.js';
@@ -265,15 +265,17 @@ function MapView({pixelSize, map, setMap, drawType, ...props}) {
 }
 
 function Editor(props) {
-    const [file, setFile] = useState({file: null, summaries: []});
+    const [mapFile, setMapFile] = useState({file: null, summaries: []});
     const [map, setMap] = useState(null);
     const [drawType, setDrawType] = useState('canvas');
     // size of screen pixel in map units
     const [pixelSize, setPixelSize] = useState(64);
 
-    async function upload(e) {
+    async function uploadMap(e) {
         const file = e.target.files[0];
-        setFile({file: file, summaries: await readMapSummaries(file)});
+        if (file) {
+            setMapFile({file: file, summaries: await readMapSummaries(file)});
+        }
     }
 
     async function setSelectedMap(summary) {
@@ -292,9 +294,9 @@ function Editor(props) {
         <Grid container spacing={3} style={{width: '100%', height: '100%', overflow: 'hidden'}}>
             <Grid item xs={3} lg={2} style={{height: '100vh', overflowY: 'scroll'}} >
                 <div>
-                    <input type="file" onChange={upload} />
+                    <input type="file" onChange={uploadMap} />
                 </div>
-                <MapList maps={file.summaries}
+                <MapList maps={mapFile.summaries}
                          selectedMap={map}
                          setSelectedMap={setSelectedMap} />
             </Grid>

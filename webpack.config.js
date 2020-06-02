@@ -2,10 +2,13 @@ var path = require('path');
 var HtmlWebpackPlugin = require('html-webpack-plugin');
 
 module.exports = {
-    entry: './app/index.js',
+    entry: {
+        main: './app/index.js',
+        shapes: './app/shapes.js',
+    },
     output: {
         path: path.resolve(__dirname, 'dist'),
-        filename: 'index_bundle.js'
+        filename: '[name].js'
     },
     module: {
         rules: [
@@ -14,9 +17,17 @@ module.exports = {
         ]
     },
     mode: 'development',
+    devtool: 'eval-source-map',
     plugins: [
         new HtmlWebpackPlugin({
-            template: 'app/index.html'
-        })
+            template: 'app/index.html',
+            filename: 'index.html',
+            chunks: ['main'],
+        }),
+        new HtmlWebpackPlugin({
+            template: 'app/shapes.html',
+            filename: 'shapes.html',
+            chunks: ['shapes'],
+        }),
     ]
 }
