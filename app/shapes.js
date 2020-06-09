@@ -15,15 +15,6 @@ function calcColorTable(collection, idx) {
     const pixels = new Uint32Array(buf);
     const bytes = new Uint8Array(buf);
 
-    const colors = [
-        [255, 0, 0],
-        [0, 255, 0],
-        [0, 0, 255],
-        [255, 255, 0],
-        [255, 0, 255],
-        [0, 255, 255],
-    ];
-
     pixels.fill(black);
 
     for (const entry of collection.colorTables[idx]) {
@@ -42,6 +33,7 @@ function Texture({collection, frameIndex, clutIndex}) {
     
     const colorTable = calcColorTable(collection, clutIndex);
     const bitmapIdx = collection.frames[frameIndex].bitmapIndex;
+    //const bitmapIdx = frameIndex;
     const bitmap = -1 !== bitmapIdx &&
           collection.bitmaps[collection.frames[frameIndex].bitmapIndex];
 
@@ -49,7 +41,7 @@ function Texture({collection, frameIndex, clutIndex}) {
         if (canvas.current) {
             let {width, height} = bitmap;
             const context = canvas.current.getContext('2d');
-            const imgData = context.createImageData(width, height);
+            const imgData = context.createImageData(2 * width, 2 * height);
 
             const pixels = new Uint32Array(imgData.data.buffer);
             for (let y = 0; y < height; ++y) {
@@ -57,12 +49,20 @@ function Texture({collection, frameIndex, clutIndex}) {
                     const srcIdx = bitmap.columnOrder
                           ? height * x + y
                           : width * y + x;
-                    const dstIdx = width * y + x;
+                    const dstIdx = 2 * (2 * width * y + x);
                     pixels[dstIdx] = colorTable[bitmap.data[srcIdx]];
+                    pixels[dstIdx + 1] = colorTable[bitmap.data[srcIdx]];
+                    pixels[dstIdx + 2 * width] =
+                        colorTable[bitmap.data[srcIdx]];
+                    pixels[dstIdx + 2 * width + 1] =
+                        colorTable[bitmap.data[srcIdx]];
                 }
             }
             
             context.putImageData(imgData, 0, 0);
+            context.fillStyle = 'white';
+            context.font = '14px sans';
+            context.fillText(`${bitmap.offset},${bitmap.bytesPerRow},${bitmap.flags}`, 30, 30);
         }
     }, [collection, frameIndex, clutIndex]);
 
@@ -73,8 +73,8 @@ function Texture({collection, frameIndex, clutIndex}) {
     return <canvas
                style={{backgroundColor: 'green'}}
                ref={canvas}
-               width={bitmap.width}
-               height={bitmap.height} />;
+               width={bitmap.width * 2}
+               height={bitmap.height * 2} />;
 }
 
 function Collection({collection, clutIndex}) {

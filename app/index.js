@@ -14,7 +14,7 @@ import ZoomOutIcon from '@material-ui/icons/ZoomOut';
 import {readMapSummaries, readMapFromSummary} from './files/wad'
 import colors from './colors.js';
 import {SvgMap} from './draw/svg.js';
-import {CanvasMap} from './draw/canvas.js';
+import {Viewport, CanvasMap} from './draw/canvas.js';
 import {polygonsAt, closestPoint, isConvex} from './geometry.js'
 import v2 from './vector2.js'
 
@@ -106,6 +106,9 @@ function MapView({pixelSize, map, setMap, drawType, ...props}) {
         reduceSelection, blankSelection);
     const ref = useRef(null);
 
+    const viewport = new Viewport(
+        viewportSize[0], viewportSize[1], pixelSize, viewCenter);
+
     function toWorld(coord) {
         return coord.map(e => e * pixelSize - 0x7fff);
     }
@@ -115,19 +118,16 @@ function MapView({pixelSize, map, setMap, drawType, ...props}) {
     }
 
     function mouseDown(e) {
-        let viewX = e.nativeEvent.offsetX;
-        let viewY = e.nativeEvent.offsetY;
+        const [x, y] = viewport.toWorld([
+            e.nativeEvent.offsetX,
+            e.nativeEvent.offsetY
+        ]);
 
-        if ('canvas' === drawType) {
-            viewX += parseFloat(e.target.dataset.left);
-            viewY += parseFloat(e.target.dataset.top);
-        }
-        
-        const [x, y] = toWorld([viewX, viewY]);
-        
         // Did we click on a point?
         const pointIndex = closestPoint([x, y], map);
-        const position = map.endpoints[pointIndex].position
+        console.log([x, y], pointIndex);
+        const position = map.endpoints[pointIndex].position;
+        console.log({click: [x, y], position, dist: v2.dist(position, [x, y])});
         if (v2.dist(position, [x, y]) < pixelSize * 8) {
             return updateSelection({
                 type: 'down',
@@ -139,7 +139,8 @@ function MapView({pixelSize, map, setMap, drawType, ...props}) {
 
         // Did we click on a polygon?
         const polygons = polygonsAt([x, y], map);
-        if (polygons) {
+        if (polygons.length > 0) {
+            console.log('poly');
             return updateSelection({
                 type: 'down',
                 objType: 'polygon',
@@ -147,6 +148,24 @@ function MapView({pixelSize, map, setMap, drawType, ...props}) {
                 coords: [x, y],
             });
         }
+
+        // // For testing coord transforms, create a new point where we clicked.
+        // const newMap = {
+        //     ...map,
+        //     endpoints: [
+        //         ...map.endpoints,
+        //         {
+        //             flags: 0,
+        //             highestFloor: 0,
+        //             lowestCeiling: 0,
+        //             position: [x, y],
+        //             transformed: [0, 0],
+        //             supportingPolyIdx: -1,
+        //         },
+        //     ],
+        // };
+        // setMap(newMap);
+        // console.log('did set');
         
         updateSelection({type: 'cancel'});
     }
@@ -155,14 +174,9 @@ function MapView({pixelSize, map, setMap, drawType, ...props}) {
         let viewX = e.nativeEvent.offsetX;
         let viewY = e.nativeEvent.offsetY;
 
-        if ('canvas' === drawType) {
-            viewX += parseFloat(e.target.dataset.left);
-            viewY += parseFloat(e.target.dataset.top);
-        }
-        
         updateSelection({
             type: 'move',
-            coords: toWorld([viewX, viewY]),
+            coords: viewport.toWorld([viewX, viewY]),
             pixelSize: pixelSize,
         });
     }
@@ -176,10 +190,11 @@ function MapView({pixelSize, map, setMap, drawType, ...props}) {
     }
 
     function updateScroll() {
-        setViewCenter(
-            toWorld([
-                ref.current.scrollLeft + (ref.current.clientWidth / 2),
-                ref.current.scrollTop + (ref.current.clientHeight / 2)]));
+        const centerPixel = [
+            ref.current.scrollLeft + (ref.current.clientWidth / 2),
+            ref.current.scrollTop + (ref.current.clientHeight / 2)];
+        const centerWorld = centerPixel.map(e => e * pixelSize - 0x7fff);
+        setViewCenter(centerWorld);
     }
 
     function recenterView() {
@@ -216,7 +231,8 @@ function MapView({pixelSize, map, setMap, drawType, ...props}) {
                     const i = selection.index;
                     const newMap = {...map, endpoints: [...map.endpoints]};
                     const newEndpoint = {...newMap.endpoints[i]};
-                    newEndpoint.position = [...selection.currentCoords];
+                    newEndpoint.position = [...selection.currentCoords.map(
+                        x => parseInt(x))];
                     newMap.endpoints[i] = newEndpoint;
                     setMap(newMap);
                 }
@@ -239,10 +255,8 @@ function MapView({pixelSize, map, setMap, drawType, ...props}) {
         mapView = (
             <CanvasMap
                 map={map}
-                pixelSize={pixelSize}
                 selection={selection}
-                viewCenter={viewCenter || [0, 0]}
-                viewportSize={viewportSize}
+                viewport={viewport}
             />
         );
     }

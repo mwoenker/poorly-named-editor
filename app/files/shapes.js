@@ -68,6 +68,7 @@ function readBitmap(bytes, offset) {
         bytesPerRow: r.int16(),
         flags: r.uint16(),
         bitDepth: r.int16(),
+        offset: offset,
     };
 
     const columnOrder = 0 != (bitmap.flags & COLUMN_ORDER_BIT);

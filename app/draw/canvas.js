@@ -2,6 +2,30 @@ import React, {useRef, useEffect, useLayoutEffect} from 'react';
 import colors from '../colors';
 import {isConvex} from '../geometry.js'
 
+export class Viewport {
+    constructor(width, height, pixelSize, viewCenter) {
+        this.height = height;
+        this.width = width;
+        this.pixelSize = pixelSize;
+        this.viewCenter = viewCenter;
+        // edges of viewport in world coords
+        this.left = viewCenter[0] - (width / 2 * pixelSize);
+        this.top = viewCenter[1] - (height / 2 * pixelSize);
+        this.right = viewCenter[0] + (width / 2 * pixelSize);
+        this.bottom = viewCenter[1] + (height / 2 * pixelSize);
+    }
+    toPixel(p) {
+        const [x, y] = p;
+        const {left, top, pixelSize} = this;
+        return [(x - left) / pixelSize, (y - top) / pixelSize]
+    }
+    toWorld(p) {
+        const [x, y] = p;
+        const {left, top, pixelSize} = this;
+        return [x * pixelSize + left, y * pixelSize + top];
+    }
+}
+
 // Striped red line pattern that polygon is drawn w/ if non convex
 let nonConvexPattern;
 function getNonConvexPattern() {
@@ -29,30 +53,17 @@ function getNonConvexPattern() {
     return nonConvexPattern;
 }
 
-function draw(map, canvas, pixelSize, viewCenter, selection) {
-    const width = canvas.width;
-    const height = canvas.height;
-
+function draw(map, selection, canvas, viewport) {
     const pointWidth = 3;
     const selectedPointWidth = 6;
 
     const nonConvexWarningPattern = getNonConvexPattern();
     
-    // edges of viewport in world coords
-    const left = viewCenter[0] - (width / 2 * pixelSize);
-    const top = viewCenter[1] - (height / 2 * pixelSize);
-    const right = viewCenter[0] + (width / 2 * pixelSize);
-    const bottom = viewCenter[1] + (height / 2 * pixelSize);
-
     const dimMin = -0x8000;
     const dimMax = 0x7fff;
 
-    function toPixel(p) {
-        return [
-            (p[0] - left) / pixelSize,
-            (p[1] - top) / pixelSize,
-        ];
-    }
+    const toPixel = p => viewport.toPixel(p);
+    const {width, height, left, top, right, bottom} = viewport;
 
     const context = canvas.getContext('2d');
 
@@ -184,11 +195,8 @@ function draw(map, canvas, pixelSize, viewCenter, selection) {
 export function CanvasMap(allProps) {
     const {
         map,
-        pixelSize,
-        addPoint,
         selection,
-        viewCenter,
-        viewportSize,
+        viewport,
         ...props
     } = allProps;
     const ref = useRef();
@@ -196,29 +204,35 @@ export function CanvasMap(allProps) {
     useLayoutEffect(
         () => {
             if (ref.current) {
-                draw(map, ref.current, pixelSize, viewCenter, selection);
+                const canvas = ref.current;
+                draw(map, selection, canvas, viewport);
             }
         }
     );
 
     // We set translation of canvas to chase the scroll region around
     const containerCenter = [
-        (viewCenter[0] + 0x8000) / pixelSize,
-        (viewCenter[1] + 0x8000) / pixelSize,
+        (viewport.viewCenter[0] + 0x8000) / viewport.pixelSize,
+        (viewport.viewCenter[1] + 0x8000) / viewport.pixelSize,
     ];
     
-    const left = Math.max(0, containerCenter[0] - (viewportSize[0] / 2));
-    const top = Math.max(0, containerCenter[1] - (viewportSize[1] / 2));
+    const left = Math.max(0, containerCenter[0] - (viewport.width / 2));
+    const top = Math.max(0, containerCenter[1] - (viewport.height / 2));
     
     return (
         <div style={{
                  //position: 'relative',
-                 width: 0xffff / pixelSize,
-                 height: 0xffff / pixelSize,
+                 width: 0xffff / viewport.pixelSize,
+                 height: 0xffff / viewport.pixelSize,
              }}
         >
-            <canvas width={viewportSize[0]}
-                    height={viewportSize[1]}
+            <canvas width={viewport.width}
+                    height={viewport.height}
+                    onClick={(e) => {
+                        let canvasX = e.nativeEvent.offsetX;
+                        let canvasY = e.nativeEvent.offsetY;
+                        console.log({canvasX, canvasY});
+                    }}
                     style={{
                         //transform: `translate(${left}px, ${top}px)`,
                         position: 'sticky',
