@@ -11,19 +11,19 @@ import {
 import ZoomInIcon from '@material-ui/icons/ZoomIn';
 import ZoomOutIcon from '@material-ui/icons/ZoomOut';
 
-import {readMapSummaries, readMapFromSummary} from './files/wad'
+import {
+    readMapSummaries, readMapFromSummary, readMapChunkTypes} from './files/wad'
 import colors from './colors.js';
-import {SvgMap} from './draw/svg.js';
 import {Viewport, CanvasMap} from './draw/canvas.js';
-import {polygonsAt, closestPoint, isConvex} from './geometry.js'
+import {polygonsAt, closestPoint, closestLine, isConvex} from './geometry.js'
 import v2 from './vector2.js'
 
 function MapSummary({directoryEntry, map}) {
-    if (map && map.polygons && map.lines && map.endpoints) {
+    if (map && map.polygons && map.lines && map.points) {
         return `Level: ${map.info.name} - ` +
             `${map.polygons.length} polygons, ` +
             `${map.lines.length} lines, ` +
-            `${map.endpoints.length} points`;
+            `${map.points.length} points`;
     } else {
         return '';
     }
@@ -44,15 +44,6 @@ function MapList({maps, selectedMap, setSelectedMap}) {
     );
 }
 
-const blankSelection = {
-    objType: null,
-    index: null,
-    isMouseDown: false,
-    isDragging: false,
-    startCoords: null,
-    currentCoords: null,
-};
-
 function dragDist(state) {
     if (! state.startCoords || ! state.currentCoords) {
         return 0;
@@ -63,6 +54,16 @@ function dragDist(state) {
     }
 }
 
+const blankSelection = {
+    objType: null,
+    index: null,
+    relativePos: null, // Position of initial mousedown relative to object
+    isMouseDown: false,
+    isDragging: false,
+    startCoords: null,
+    currentCoords: null,
+};
+
 function reduceSelection(state, action) {
     switch (action.type) {
     case 'down':
@@ -70,6 +71,7 @@ function reduceSelection(state, action) {
             ...blankSelection,
             objType: action.objType,
             index: action.index,
+            relativePos: action.relativePos,
             isMouseDown: true,
             startCoords: action.coords,
             currentCoords: action.coords,
@@ -98,14 +100,14 @@ function reduceSelection(state, action) {
     }
 }
 
-function MapView({pixelSize, map, setMap, drawType, ...props}) {
+function MapView({pixelSize, map, setMap, ...props}) {
     const [viewportSize, setViewportSize] = useState([0, 0]);
     const [viewCenter, setViewCenter] = useState([0, 0]);
     //const [selection, setSelection] = useState({type: null, index: null});
     const [selection, updateSelection] = useReducer(
         reduceSelection, blankSelection);
     const ref = useRef(null);
-
+    console.log(selection);
     const viewport = new Viewport(
         viewportSize[0], viewportSize[1], pixelSize, viewCenter);
 
@@ -118,55 +120,56 @@ function MapView({pixelSize, map, setMap, drawType, ...props}) {
     }
 
     function mouseDown(e) {
-        const [x, y] = viewport.toWorld([
+        const clickPos = viewport.toWorld([
             e.nativeEvent.offsetX,
             e.nativeEvent.offsetY
         ]);
 
+        const distThreshold = pixelSize * 8;
+
         // Did we click on a point?
-        const pointIndex = closestPoint([x, y], map);
-        console.log([x, y], pointIndex);
-        const position = map.endpoints[pointIndex].position;
-        console.log({click: [x, y], position, dist: v2.dist(position, [x, y])});
-        if (v2.dist(position, [x, y]) < pixelSize * 8) {
+        const pointIndex = closestPoint(clickPos, map);
+        const position = map.points[pointIndex];
+        if (v2.dist(position, clickPos) < distThreshold) {
             return updateSelection({
                 type: 'down',
                 objType: 'point',
                 index: pointIndex,
-                coords: [x, y],
+                relativePos: v2.sub(clickPos, position),
+                coords: clickPos,
+            });
+        }
+
+        // Did we click on a line?
+        const [lineIndex, dist] = closestLine(clickPos, map);
+        console.log({lineIndex, dist, distThreshold});
+        if (lineIndex && dist < distThreshold) {
+            const linePos = map.points[map.lines[lineIndex].begin];
+            return updateSelection({
+                type: 'down',
+                objType: 'line',
+                index: lineIndex,
+                relativePos: v2.sub(clickPos, linePos),
+                coords: clickPos,
             });
         }
 
         // Did we click on a polygon?
-        const polygons = polygonsAt([x, y], map);
+        const polygons = polygonsAt(clickPos, map);
         if (polygons.length > 0) {
-            console.log('poly');
+            const idx = polygons[polygons.length - 1];
+            const poly = map.polygons[idx];
+            // polygon "position" is position of first endpoint
+            const polyPos = map.points[poly.endpoints[0]];
             return updateSelection({
                 type: 'down',
                 objType: 'polygon',
-                index: polygons[polygons.length - 1],
-                coords: [x, y],
+                index: idx,
+                relativePos: v2.sub(clickPos, polyPos),
+                coords: clickPos,
             });
         }
 
-        // // For testing coord transforms, create a new point where we clicked.
-        // const newMap = {
-        //     ...map,
-        //     endpoints: [
-        //         ...map.endpoints,
-        //         {
-        //             flags: 0,
-        //             highestFloor: 0,
-        //             lowestCeiling: 0,
-        //             position: [x, y],
-        //             transformed: [0, 0],
-        //             supportingPolyIdx: -1,
-        //         },
-        //     ],
-        // };
-        // setMap(newMap);
-        // console.log('did set');
-        
         updateSelection({type: 'cancel'});
     }
 
@@ -187,6 +190,26 @@ function MapView({pixelSize, map, setMap, drawType, ...props}) {
 
     function mouseLeave(e) {
         updateSelection({type: 'up'});
+    }
+
+    function keyDown(e) {
+        switch (e.key) {
+        case 'Backspace':
+        case 'Delete':
+            if ('point' === selection.objType) {
+                setMap(map.deletePoint(selection.index));
+                updateSelection({type: 'cancel'});
+            } else if ('polygon' === selection.objType) {
+                setMap(map.deletePolygon(selection.index));
+                updateSelection({type: 'cancel'});
+            } else if ('line' === selection.objType) {
+                setMap(map.deleteLine(selection.index));
+                updateSelection({type: 'cancel'});
+            }
+            break;
+        default:
+            console.log('key', e.key);
+        }
     }
 
     function updateScroll() {
@@ -228,52 +251,40 @@ function MapView({pixelSize, map, setMap, drawType, ...props}) {
         () => {
             if (selection.isDragging) {
                 if ('point' === selection.objType) {
-                    const i = selection.index;
-                    const newMap = {...map, endpoints: [...map.endpoints]};
-                    const newEndpoint = {...newMap.endpoints[i]};
-                    newEndpoint.position = [...selection.currentCoords.map(
-                        x => parseInt(x))];
-                    newMap.endpoints[i] = newEndpoint;
-                    setMap(newMap);
+                    setMap(map.movePoint(
+                        selection.index,
+                        selection.currentCoords.map(x => parseInt(x))));
+                } else if ('polygon' === selection.objType) {
+                    setMap(map.movePolygon(
+                        selection.index,
+                        v2.sub(
+                            selection.currentCoords,
+                            selection.relativePos)));
                 }
             }
         },
         [selection.isDragging, selection.currentCoords]
     );
 
-    let mapView;
-
-    if ('svg' === drawType) {
-        mapView = (
-            <SvgMap
-                map={map}
-                pixelSize={pixelSize}
-                selection={selection}
-            />
-        );
-    } else if ('canvas' === drawType) {
-        mapView = (
-            <CanvasMap
-                map={map}
-                selection={selection}
-                viewport={viewport}
-            />
-        );
-    }
-
     return (
         <div style={{
                  flex: '1 1 auto',
                  overflow: 'scroll',
              }}
+             tabIndex="0"
              onScroll={updateScroll}
              onMouseDown={mouseDown}
              onMouseMove={mouseMove}
              onMouseUp={mouseUp}
              onMouseLeave={mouseLeave}
+             onKeyDown={keyDown}
              ref={ref}
         >
-            {mapView}
+            <CanvasMap
+                map={map}
+                selection={selection}
+                viewport={viewport}
+            />
         </div>
     );
 }
@@ -281,19 +292,43 @@ function MapView({pixelSize, map, setMap, drawType, ...props}) {
 function Editor(props) {
     const [mapFile, setMapFile] = useState({file: null, summaries: []});
     const [map, setMap] = useState(null);
-    const [drawType, setDrawType] = useState('canvas');
     // size of screen pixel in map units
     const [pixelSize, setPixelSize] = useState(64);
 
     async function uploadMap(e) {
         const file = e.target.files[0];
         if (file) {
-            setMapFile({file: file, summaries: await readMapSummaries(file)});
+            const summaries = await readMapSummaries(file);
+            setMapFile({file, summaries});
+            // const types = new Map();
+            // for (const summary of summaries) {
+            //     for (const type of await readMapChunkTypes(summary)) {
+            //         types.set(type, true);
+            //     }
+            // }
+            // console.log('chunk types', [...types.keys()]);
         }
     }
 
     async function setSelectedMap(summary) {
         setMap(await readMapFromSummary(summary));
+    }
+
+    function keyDown(e) {
+        switch (e.key) {
+        case '+':
+        case '=':
+            e.preventDefault();
+            zoomIn();
+            break;
+        case '_':
+        case '-':
+            e.preventDefault();
+            zoomOut();
+            break;
+        default:
+            console.log('key', e.key);
+        }
     }
 
     function zoomIn() {
@@ -320,7 +355,9 @@ function Editor(props) {
                       display: 'flex',
                       flexDirection: 'column',
                       padding: 0,
-                  }} >
+                  }}
+                  tabIndex="0"
+                  onKeyDown={keyDown} >
                 <div style={{display: 'flex'}}>
                     <div style={{flex: '0 0 auto'}}>
                         <IconButton onClick={zoomOut}>
@@ -329,13 +366,6 @@ function Editor(props) {
                         <IconButton onClick={zoomIn}>
                             <ZoomInIcon />
                         </IconButton>
-                        <Select
-                            value={drawType}
-                            onChange={(e) => setDrawType(e.target.value)}
-                        >
-                            <MenuItem value='svg'>SVG</MenuItem>
-                            <MenuItem value='canvas'>Canvas</MenuItem>
-                        </Select>
                     </div>
                     <div style={{
                              flex: '1 auto',
@@ -348,7 +378,6 @@ function Editor(props) {
                 <MapView map={map}
                          setMap={setMap}
                          pixelSize={pixelSize}
-                         drawType={drawType}
                          addPoint={(x, y) => {
                              map.endpoints.push({position: [x, y]});
                              setMap({...map});

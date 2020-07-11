@@ -5,7 +5,7 @@ import {isConvex} from '../geometry.js'
 export const SvgMap = React.memo((allProps) => {
     const {map, pixelSize, addPoint, selection, ...props} = allProps;
     const polygons = map && map.polygons ? map.polygons : [];
-    const endpoints = map && map.endpoints ? map.endpoints : [];
+    const points = map && map.points ? map.points : [];
     const lines = map && map.lines ? map.lines : [];
     const dimMin = -0x8000;
     const dimMax = 0x7fff;
@@ -64,7 +64,7 @@ export const SvgMap = React.memo((allProps) => {
             {polygons.map((poly, i) => {
                 const nPoints = poly.vertexCount;
                 const points = poly.endpoints.slice(0, nPoints).map(
-                    idx => endpoints[idx].position);
+                    idx => points[idx]);
                 const svgPoints = points.map(pt => `${pt[0]},${pt[1]}`)
                       .join(' ');
                 const selected = 'polygon' === selection.objType 
@@ -102,23 +102,23 @@ export const SvgMap = React.memo((allProps) => {
                 } else if (inSelectedPoly) {
                     color = colors.lineInSelectedPoly;
                 }
-                return <line x1={endpoints[line.begin].position[0]}
-                             y1={endpoints[line.begin].position[1]}
-                             x2={endpoints[line.end].position[0]}
-                             y2={endpoints[line.end].position[1]}
+                return <line x1={points[line.begin][0]}
+                             y1={points[line.begin][1]}
+                             x2={points[line.end][0]}
+                             y2={points[line.end][1]}
                              key={`line-${i}`}
                              stroke={color}
                              strokeWidth="1px"
                              vectorEffect="non-scaling-stroke"/>
             })}
-            {endpoints.map((point, i) => {
+            {points.map((point, i) => {
                 const selected =
                       'point' === selection.objType && i === selection.index;
                 const width = selected ? selectedPointWidth : pointWidth;
                 const color = selected ? colors.selectedPoint : colors.point;
                 return (
-                    <rect x={point.position[0] - width/2}
-                          y={point.position[1] - width/2}
+                    <rect x={point[0] - width/2}
+                          y={point[1] - width/2}
                           key={`point-${i}`}
                           width={width}
                           height={width}

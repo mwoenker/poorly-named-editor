@@ -1,14 +1,15 @@
 export default {
-    background: '#aaa',
+    background: '#888',
     nonconvexWarning: '#ff0000',
     ruleLine: '#ddd',
     wuMarker: 'cyan',
-    polygon: '#fff',
+    polygon: '#f8f8f8',
     selectedPolygon: '#fb4',
     portalLine: 'cyan',
     line: '#000',
     //lineInSelectedPoly: '#fff',
     lineInSelectedPoly: '#000',
+    lineSelected: '#ffa',
     point: 'red',
     selectedPoint: 'black',
 }

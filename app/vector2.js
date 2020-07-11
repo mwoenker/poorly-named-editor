@@ -26,6 +26,10 @@ function dist(a, b) {
     return length(sub(a, b));
 }
 
+function scale(s, v) {
+    return [s * v[0], s * v[1]];
+}
+
 export default {
     add,
     sub,
@@ -34,4 +38,5 @@ export default {
     length,
     distSquared,
     dist,
+    scale,
 };

@@ -4,7 +4,6 @@ const nCollections = 32;
 const collectionHeaderSize = 32
 
 // See shape_descriptors.h in aleph one
-// These are the only collections we load.
 export const collectionIndex = {
     wall: {
         water: 17,

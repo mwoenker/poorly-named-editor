@@ -77,6 +77,8 @@ function draw(map, selection, canvas, viewport) {
     const gridRight = Math.min(dimMax, right);
     const gridTop = Math.max(dimMin, top);
     const gridBottom = Math.min(dimMax, bottom);
+
+    context.save();
     
     // Draw ruler lines
     const ruleSize = 256;
@@ -119,16 +121,18 @@ function draw(map, selection, canvas, viewport) {
             context.fill();
         }
     }
-
+    
+    context.restore();
 
     if (! map) {
         return;
     }
 
+    context.save();
     map.polygons.forEach((poly, i) => {
         const nPoints = poly.vertexCount;
         const points = poly.endpoints.slice(0, nPoints).map(
-            idx => map.endpoints[idx].position);
+            idx => map.points[idx]);
         const selected = 'polygon' === selection.objType 
               && i === selection.index;
         const color = selected
@@ -152,35 +156,44 @@ function draw(map, selection, canvas, viewport) {
             drawPoly(points);
         }
     });
-    
-    for (const line of map.lines) {
-        const begin = map.endpoints[line.begin].position;
-        const end = map.endpoints[line.end].position;
+    context.restore();
 
+    context.save();
+    map.lines.forEach((line, i) => {
+        const begin = map.points[line.begin];
+        const end = map.points[line.end];
+
+        const isSelected =
+              'line' === selection.objType && i === selection.index;
         const inSelectedPoly =  'polygon' === selection.objType &&
               [line.frontPoly, line.backPoly].includes(selection.index);
-        const isPortal = line.frontPoly != 0xffff &&
-              line.backPoly != 0xffff;
+        const isPortal = line.frontPoly != -1 && line.backPoly != -1;
         let color = colors.line;
-        if (isPortal) {
+        
+        if (isSelected) {
+            color = colors.lineSelected;
+        } else if (isPortal) {
             color = colors.portalLine;
         } else if (inSelectedPoly) {
             color = colors.lineInSelectedPoly;
         }
 
+        context.lineWidth = isSelected ? 3 : 1;
         context.strokeStyle = color;
         context.beginPath();
         context.moveTo(...toPixel(begin));
         context.lineTo(...toPixel(end));
         context.stroke();
-    }
+    });
+    context.restore();
 
-    map.endpoints.forEach((point, i) => {
+    context.save();
+    map.points.forEach((point, i) => {
         const selected =
               'point' === selection.objType && i === selection.index;
         const width = selected ? selectedPointWidth : pointWidth;
         const color = selected ? colors.selectedPoint : colors.point;
-        const pos = toPixel(point.position);
+        const pos = toPixel(point);
         context.fillStyle = color;
         context.beginPath();
         context.rect(
@@ -190,6 +203,7 @@ function draw(map, selection, canvas, viewport) {
             width);
         context.fill();
     });
+    context.restore();
 }
 
 export function CanvasMap(allProps) {
@@ -200,13 +214,22 @@ export function CanvasMap(allProps) {
         ...props
     } = allProps;
     const ref = useRef();
+    const frameRequest = useRef(0);
+
+    const redraw = () => {
+        if (ref.current) {
+            const canvas = ref.current;
+            draw(map, selection, canvas, viewport);
+        }
+        frameRequest.current = 0;
+    }
 
     useLayoutEffect(
         () => {
-            if (ref.current) {
-                const canvas = ref.current;
-                draw(map, selection, canvas, viewport);
+            if (0 !== frameRequest.current) {
+                cancelAnimationFrame(frameRequest.current);
             }
+            frameRequest.current = requestAnimationFrame(redraw);
         }
     );
 
@@ -231,7 +254,6 @@ export function CanvasMap(allProps) {
                     onClick={(e) => {
                         let canvasX = e.nativeEvent.offsetX;
                         let canvasY = e.nativeEvent.offsetY;
-                        console.log({canvasX, canvasY});
                     }}
                     style={{
                         //transform: `translate(${left}px, ${top}px)`,
