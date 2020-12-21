@@ -178,7 +178,7 @@ function draw(map, selection, canvas, viewport) {
             color = colors.lineInSelectedPoly;
         }
 
-        context.lineWidth = isSelected ? 3 : 1;
+        context.lineWidth = isSelected ? 5 : 1;
         context.strokeStyle = color;
         context.beginPath();
         context.moveTo(...toPixel(begin));
@@ -201,6 +201,17 @@ function draw(map, selection, canvas, viewport) {
             pos[1] - (width/2),
             width,
             width);
+        context.fill();
+    });
+    context.restore();
+
+    context.save();
+    map.objects.forEach((object, i) => {
+        console.log(object);
+        context.fillStyle = 'blue';
+        const [x, y] = toPixel(object.position);
+        context.beginPath();
+        context.rect(x - 2, y - 2, 5, 5);
         context.fill();
     });
     context.restore();

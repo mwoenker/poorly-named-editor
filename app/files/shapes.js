@@ -27,7 +27,8 @@ export const collectionIndex = {
     },
 };
 
-const COLUMN_ORDER_BIT = 0x8000;
+export const COLUMN_ORDER_BIT = 0x8000;
+export const SELF_LUMINESCENT_BIT = 0x80;
 
 function readColorTable(bytes, colorsPerTable) {
     const r = new Reader(bytes);

@@ -1,0 +1,46 @@
+body {
+    margin: 0;
+}
+
+.editor {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    
+}
+
+.leftPanel {
+    height: 100vh;
+    overflow-y: auto;
+    flex: 0 0 300px;
+    padding: 8px;
+}
+
+.rightPanel {
+    flex: 1 1 auto;
+    width: 0px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.topBar {
+    display: flex;
+}
+
+.zoomIcons {
+    flex: 0 0 auto;
+}
+
+.mapSummary {
+    flex: 1 auto;
+    text-align: right;
+    padding: 12px;
+}
+
+.mapView {
+    flex: 1 1 auto;
+    overflow: scroll;
+}
+

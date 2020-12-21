@@ -1,0 +1,18 @@
+Must recalculate polygon area
+what's up with polygon.firstObject? I guess objects must be kept sorted by polygon?
+what's up with polygon.firstNeighbor and polygon.nNeighbors? Is this stuff stored in index chunk?
+What do we need to do with indexes? generate them at map save? Or just leave them empty and let AO generate them?
+
+Okay grepping through uses of get_map_indexes in AO source reveal indexes being used for:
+
+  polygon->first_exclusion_zone_index
+  polygon->sound_source_indexes
+  polygon->first_neighbor_index
+  platform->endpoint_owners[i].first_polygon_index
+  platform->endpoint_owners[i].first_line_index
+
+high level, used for
+  * finding colliding monsters in vicinity of polygon
+  * something involving polygons & lines associated w/ platforms
+  * finding nearby sounds
+  * finding nearby polygons to swipe items from.

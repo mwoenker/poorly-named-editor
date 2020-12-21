@@ -1,41 +1,47 @@
 import React, {useState, useReducer, useEffect, useLayoutEffect, useRef} from 'react';
 import ReactDOM from 'react-dom';
 import './index.css';
-import {
-    IconButton,
-    Button,
-    Grid,
-    Select,
-    MenuItem,
-} from '@material-ui/core';
+
+import IconButton from  '@material-ui/core/IconButton';
+import Button from  '@material-ui/core/Button';
+import Grid from  '@material-ui/core/Grid';
+import Select from  '@material-ui/core/Select';
+import MenuItem from  '@material-ui/core/MenuItem';
+
 import ZoomInIcon from '@material-ui/icons/ZoomIn';
 import ZoomOutIcon from '@material-ui/icons/ZoomOut';
 
 import {
-    readMapSummaries, readMapFromSummary, readMapChunkTypes} from './files/wad'
+    readMapSummaries, readMapFromSummary, readMapChunkTypes} from './files/wad';
 import colors from './colors.js';
 import {Viewport, CanvasMap} from './draw/canvas.js';
-import {polygonsAt, closestPoint, closestLine, isConvex} from './geometry.js'
-import v2 from './vector2.js'
+import {polygonsAt, closestPoint, closestLine, isConvex} from './geometry.js';
+import v2 from './vector2.js';
+
+import './index.css';
 
 function MapSummary({directoryEntry, map}) {
     if (map && map.polygons && map.lines && map.points) {
-        return `Level: ${map.info.name} - ` +
-            `${map.polygons.length} polygons, ` +
-            `${map.lines.length} lines, ` +
-            `${map.points.length} points`;
+        return (
+            <div className="mapSummary">
+                {`Level: ${map.info.name} - ` +
+                 `${map.polygons.length} polygons, ` +
+                 `${map.lines.length} lines, ` +
+                 `${map.points.length} points`}
+            </div>
+        );
     } else {
         return '';
     }
 }
 
-function MapList({maps, selectedMap, setSelectedMap}) {
+function MapList({maps, selectedMap, onMapSelected}) {
     return (
         <Select value={selectedMap ? selectedMap.index : ''}>
             {maps.map(m =>
                 <MenuItem key={m.index}
                           value={m.index}
-                          onClick={() => setSelectedMap(m)}
+                          onClick={() => onMapSelected(m)}
                           selected={selectedMap && selectedMap.index === m.index}>
                     {m.info.name}
                 </MenuItem>)
@@ -103,7 +109,6 @@ function reduceSelection(state, action) {
 function MapView({pixelSize, map, setMap, ...props}) {
     const [viewportSize, setViewportSize] = useState([0, 0]);
     const [viewCenter, setViewCenter] = useState([0, 0]);
-    //const [selection, setSelection] = useState({type: null, index: null});
     const [selection, updateSelection] = useReducer(
         reduceSelection, blankSelection);
     const ref = useRef(null);
@@ -267,10 +272,7 @@ function MapView({pixelSize, map, setMap, ...props}) {
     );
 
     return (
-        <div style={{
-                 flex: '1 1 auto',
-                 overflow: 'scroll',
-             }}
+        <div className='mapView'
              tabIndex="0"
              onScroll={updateScroll}
              onMouseDown={mouseDown}
@@ -300,13 +302,6 @@ function Editor(props) {
         if (file) {
             const summaries = await readMapSummaries(file);
             setMapFile({file, summaries});
-            // const types = new Map();
-            // for (const summary of summaries) {
-            //     for (const type of await readMapChunkTypes(summary)) {
-            //         types.set(type, true);
-            //     }
-            // }
-            // console.log('chunk types', [...types.keys()]);
         }
     }
 
@@ -331,35 +326,31 @@ function Editor(props) {
         }
     }
 
+    const zoomIncrement = 1.5;
+    
     function zoomIn() {
-        setPixelSize(pixelSize / 2);
+        setPixelSize(pixelSize / zoomIncrement);
     }
 
     function zoomOut() {
-        setPixelSize(pixelSize * 2);
+        setPixelSize(pixelSize * zoomIncrement);
     }
 
     return (
-        <Grid container spacing={3} style={{width: '100%', height: '100%', overflow: 'hidden'}}>
-            <Grid item xs={3} lg={2} style={{height: '100vh', overflowY: 'scroll'}} >
+        <div className="editor">
+            <div class="leftPanel">
                 <div>
                     <input type="file" onChange={uploadMap} />
                 </div>
                 <MapList maps={mapFile.summaries}
                          selectedMap={map}
-                         setSelectedMap={setSelectedMap} />
-            </Grid>
-            <Grid item xs={9} lg={10}
-                  style={{
-                      height: '100vh',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      padding: 0,
-                  }}
-                  tabIndex="0"
-                  onKeyDown={keyDown} >
-                <div style={{display: 'flex'}}>
-                    <div style={{flex: '0 0 auto'}}>
+                         onMapSelected={setSelectedMap} />
+            </div>
+            <div className="rightPanel"
+                 tabIndex="0"
+                 onKeyDown={keyDown} >
+                <div className="topBar">
+                    <div className="zoomIcons">
                         <IconButton onClick={zoomOut}>
                             <ZoomOutIcon />
                         </IconButton>
@@ -367,13 +358,7 @@ function Editor(props) {
                             <ZoomInIcon />
                         </IconButton>
                     </div>
-                    <div style={{
-                             flex: '1 auto',
-                             textAlign: 'right',
-                             padding: '12px',
-                         }}>
-                        <MapSummary map={map} />
-                    </div>
+                    <MapSummary map={map} />
                 </div>
                 <MapView map={map}
                          setMap={setMap}
@@ -382,8 +367,8 @@ function Editor(props) {
                              map.endpoints.push({position: [x, y]});
                              setMap({...map});
                          }} />
-            </Grid>
-        </Grid>
+            </div>
+        </div>
     );
 }
 

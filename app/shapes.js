@@ -1,3 +1,5 @@
+// This is a quick hack to display images from the shapes file
+
 import React, {useState, useReducer, useEffect, useLayoutEffect, useRef} from 'react';
 import ReactDOM from 'react-dom';
 
@@ -28,7 +30,7 @@ function calcColorTable(collection, idx) {
     return pixels;
 }
 
-function Texture({collection, frameIndex, clutIndex}) {
+function Shape({collection, frameIndex, clutIndex}) {
     const canvas = useRef();
     
     const colorTable = calcColorTable(collection, clutIndex);
@@ -40,10 +42,14 @@ function Texture({collection, frameIndex, clutIndex}) {
     useEffect(() => {
         if (canvas.current) {
             let {width, height} = bitmap;
+            let canvasWidth = canvas.current.width;
+            let canvasHeight = canvas.current.height;
+
             const context = canvas.current.getContext('2d');
             const imgData = context.createImageData(2 * width, 2 * height);
 
             const pixels = new Uint32Array(imgData.data.buffer);
+            
             for (let y = 0; y < height; ++y) {
                 for (let x = 0; x < width; ++x) {
                     const srcIdx = bitmap.columnOrder
@@ -84,7 +90,7 @@ function Collection({collection, clutIndex}) {
     return (
         <div>
             {collection.frames.map((frame, i) =>
-                <Texture
+                <Shape
                     key={i}
                     collection={collection}
                     frameIndex={i}
