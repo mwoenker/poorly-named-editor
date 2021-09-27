@@ -1,4 +1,4 @@
-import v2 from '../vector2';
+import { v2sub, v2add } from '../vector2';
 
 function outOfRange(pt) {
     return pt[0] < -0x8000 || pt[0] > 0x7fff ||
@@ -14,12 +14,12 @@ class Dependencies {
     // Add object, but not its dependencies. Returns true if object is already
     // in list.
     _add(type, index) {
-        if (! this.objects.has(type)) {
+        if (!this.objects.has(type)) {
             this.objects.set(type, [index]);
             return true;
         } else {
             const typeObjs = this.objects.get(type);
-            if (! typeObjs.includes(index)) {
+            if (!typeObjs.includes(index)) {
                 this.objects.get(type).push(index)
                 return true;
             } else {
@@ -40,7 +40,7 @@ class Dependencies {
     // object B is dependent on object A if B must be deleted when A is deleted
     // -- i.e. a line is dependent on its two endpoints because when one of its
     // endpoints is deleted, the line can no longer exist.
-    
+
     addPoint(map, pointIndex) {
         if (this._add('points', pointIndex)) {
             for (let i = 0; i < map.lines.length; ++i) {
@@ -125,8 +125,7 @@ function updateObject(original, updates) {
         if (a === b) {
             return true;
         } else if (Array.isArray(a) && Array.isArray(b)
-                   && a.length === b.length)
-        {
+            && a.length === b.length) {
             for (let i = 0; i < a.length; ++i) {
                 if (a[i] !== b[i]) {
                     return false;
@@ -137,17 +136,17 @@ function updateObject(original, updates) {
             return false;
         }
     }
-    
+
     for (const prop in updates) {
-        if (! compare(original[prop], updates[prop])) {
-            return {...original, ...updates};
+        if (!compare(original[prop], updates[prop])) {
+            return { ...original, ...updates };
         }
     }
     return original;
 }
 
 export class MapGeometry {
-    constructor({index, header, info, ...arrays}) {
+    constructor({ index, header, info, ...arrays }) {
         this.index = index;
         this.header = header;
         this.info = info;
@@ -162,23 +161,23 @@ export class MapGeometry {
         if (outOfRange(newPoints[i])) {
             return this;
         } else {
-            return new MapGeometry({...this, points: newPoints});
+            return new MapGeometry({ ...this, points: newPoints });
         }
     }
 
     movePolygon(polyIdx, position) {
         const polygon = this.polygons[polyIdx];
         const referencePos = this.points[polygon.endpoints[0]];
-        const offset = v2.sub(position, referencePos);
+        const offset = v2sub(position, referencePos);
         const newPoints = [...this.points];
         for (const ptIdx of polygon.endpoints) {
-            newPoints[ptIdx] = v2.add(newPoints[ptIdx], offset).map(x =>
+            newPoints[ptIdx] = v2add(newPoints[ptIdx], offset).map(x =>
                 parseInt(x));
             if (outOfRange(newPoints[ptIdx])) {
                 return this;
             }
         }
-        return new MapGeometry({...this, points: newPoints});
+        return new MapGeometry({ ...this, points: newPoints });
     }
 
     removeObjectsAndRenumber(deadObjects) {
@@ -271,7 +270,7 @@ export class MapGeometry {
         deletions.addLine(this, pointIdx);
         return this.removeObjectsAndRenumber(deletions);
     }
-    
+
     deletePoint(pointIdx) {
         const deletions = new Dependencies();
         deletions.addPoint(this, pointIdx);

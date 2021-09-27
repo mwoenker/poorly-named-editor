@@ -28,8 +28,10 @@
     "author": "",
     "license": "ISC",
     "dependencies": {
-        "@material-ui/core": "^4.9.12",
-        "@material-ui/icons": "^4.9.1",
+        "@material-ui/core": "^4.12.3",
+        "@material-ui/icons": "^4.11.2",
+        "@types/react": "^17.0.24",
+        "@types/react-dom": "^17.0.9",
         "express": "^4.17.1",
         "react": "^16.13.1",
         "react-dom": "^16.13.1"
@@ -38,12 +40,17 @@
         "@babel/core": "^7.9.0",
         "@babel/preset-env": "^7.9.5",
         "@babel/preset-react": "^7.9.4",
+        "@typescript-eslint/eslint-plugin": "^4.31.2",
+        "@typescript-eslint/parser": "^4.31.2",
         "babel-loader": "^8.1.0",
         "css-loader": "^3.5.3",
+        "eslint": "^7.32.0",
         "html-webpack-plugin": "^4.2.0",
         "style-loader": "^1.2.0",
-        "webpack": "^4.43.0",
+        "ts-loader": "^9.2.6",
+        "typescript": "^4.4.3",
+        "webpack": "^5.54.0",
         "webpack-cli": "^3.3.11",
-        "webpack-dev-server": "^3.10.3"
+        "webpack-dev-server": "^4.3.0"
     }
 }

@@ -3,7 +3,7 @@ var HtmlWebpackPlugin = require('html-webpack-plugin');
 
 module.exports = {
     entry: {
-        main: './app/index.js',
+        main: './app/index.tsx',
         shapes: './app/shapes.js',
     },
     output: {
@@ -13,8 +13,16 @@ module.exports = {
     module: {
         rules: [
             {test: /\.(js)$/, use: 'babel-loader'},
-            {test: /\.css$/, use: ['style-loader', 'css-loader']}
-        ]
+            {test: /\.css$/, use: ['style-loader', 'css-loader']},
+            {
+                test: /\.tsx?$/,
+                use: 'ts-loader',
+                exclude: /node_modules/,
+            },
+        ],
+    },
+    resolve: {
+        extensions: ['.tsx', '.ts', '.js'],
     },
     mode: 'development',
     devtool: 'eval-source-map',
